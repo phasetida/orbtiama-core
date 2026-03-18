@@ -19,7 +19,7 @@
       - [x] v 路径
       - [x] V 路径
       - [x] w 路径
-    - [ ] 单头多尾（未测试）
+    - [x] 单头多尾
     - [x] 连环
   - [x] Note Decoration
   - [x] Each 假Each
@@ -46,13 +46,13 @@
       - [x] V 路径
       - [ ] w 路径
     - [ ] Note decoration
-      - [ ] Break
-      - [ ] Ex
+      - [x] (Render side) Break
+      - [x] (Render side) Ex
       - [ ] Fireworks
-      - [ ] Mine
+      - [x] (Render side) Mine
       - [ ] SuddenIn
       - [ ] FadeOut
-      - [ ] Each
+      - [x] (Render side) Each
       - [ ] ForceStar
       - [ ] Spinning
       - [ ] ForceNormal
