@@ -155,6 +155,10 @@ bitflags! {
         const ForceStar=    1 << 7;
         const Spinning=     1 << 8;
         const ForceNormal=  1 << 9;
+        const TailEach=     1 << 10;
+        const TailBreak=    1 << 11;
+        const DoubleStar=   1 << 12;
+        const WifiSlide=    1 << 13;
     }
 }
 
@@ -239,6 +243,12 @@ pub struct SlideBranch {
     pub slide_parts: Vec<SlidePart>,
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct SlideBranchRaw {
+    pub start_location: Location,
+    pub slide_parts: Vec<(SlidePartRaw, Option<(f32, f32)>)>,
+}
+
 #[derive(Debug)]
 pub struct SlidePart {
     pub decoration: NoteDecoration,
@@ -247,7 +257,7 @@ pub struct SlidePart {
     pub duration: f32,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct SlidePartRaw {
     pub location: SlideLocator,
     pub decoration: NoteDecoration,
@@ -257,9 +267,10 @@ pub struct SlidePartRaw {
 pub struct FractureRay {
     pub path: Path,
     pub length: f32,
+    pub tolerance: f32,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum SlideLocator {
     #[default]
     Invalid,

@@ -1,4 +1,7 @@
-use lyon_path::{geom::point, math::{Angle, Point}};
+use lyon_path::{
+    geom::point,
+    math::{Angle, Point},
+};
 
 use crate::deserialize::element::notes::FractureRay;
 
@@ -34,6 +37,27 @@ where
         .for_each(|it| {
             if let lyon_path::Event::Line { from, to } = it {
                 func(from, (to - from).angle_from_x_axis());
+            }
+        });
+}
+
+pub fn track_path_complete<F>(path: &FractureRay, length_per_step: f32, mut func: F)
+where
+    F: FnMut(Point, Angle, f32),
+{
+    let length = path.length;
+    let steps = length / length_per_step;
+    path.path
+        .iter()
+        .step_by((length_per_step / path.tolerance) as usize)
+        .enumerate()
+        .for_each(|(i, it)| {
+            if let lyon_path::Event::Line { from, to } = it {
+                func(
+                    from,
+                    (to - from).angle_from_x_axis(),
+                    ((i as f32) / steps).clamp(0.0, 1.0),
+                )
             }
         });
 }

@@ -8,8 +8,8 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            tap_speed: 8.0,
-            touch_speed: 8.0,
+            tap_speed: 0.5,
+            touch_speed: 0.5,
             slide_show_offset: 0.0,
             mirror_mode: Default::default(),
         }

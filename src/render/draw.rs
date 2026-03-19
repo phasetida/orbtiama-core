@@ -3,9 +3,10 @@ use crate::{
     deserialize::element::notes::{NoteDecoration, SlideBranch, SlidePart},
     render::{
         element::{
-            Dense, RendHoldNote, RendSlideArrow, RendTapNote, RendTouchHoldNote, RendTouchNote,
+            Dense, RendHintLine, RendHoldNote, RendSlideArrow, RendSlideWifiArrow, RendTapNote,
+            RendTouchHoldNote, RendTouchNote,
         },
-        math::{track_path, track_path_point},
+        math::{track_path, track_path_complete, track_path_point},
     },
     state::element::{
         HoldNoteState, NoteState, SlideBranchState, SlideNoteState, TapNoteState,
@@ -19,6 +20,9 @@ const REND_TYPE_TOUCH_HOLD: u8 = 3;
 const REND_TYPE_HOLD: u8 = 4;
 const REND_TYPE_SLIDE_HEAD: u8 = 5;
 const REND_TYPE_SLIDE_ARROW: u8 = 6;
+const REND_TYPE_HINT: u8 = 7;
+const REND_TYPE_EACH_HINT: u8 = 8;
+const REND_TYPE_WIFI_PART: u8 = 9;
 
 /// A trait for observing write operations on a buffer.
 ///
@@ -31,7 +35,7 @@ pub trait BufferWithCursor {
 
 pub fn draw(buffer: &mut impl BufferWithCursor) {
     CHART_STATE.with_borrow(|states| {
-        for it in states {
+        for it in states.iter().rev() {
             draw_note_state(buffer, it);
         }
         buffer.write(&[0]);
@@ -62,6 +66,18 @@ fn draw_tap_state(buffer: &mut impl BufferWithCursor, state: &TapNoteState) {
             y: state.y,
             rotate: state.rotate,
             scale: state.scale,
+            alpha: 1.0,
+        }
+        .to_bytes(),
+    );
+    buffer.write(
+        RendHintLine {
+            rend_type: REND_TYPE_HINT,
+            flags: state.note.decoration.bits(),
+            slide: false,
+            scale: state.hint_scale,
+            rotate: state.hint_rotate,
+            alpha: state.hint_alpha,
         }
         .to_bytes(),
     );
@@ -97,6 +113,18 @@ fn draw_hold_state(buffer: &mut impl BufferWithCursor, state: &HoldNoteState) {
             tail_y: state.tail_y,
             rotate: state.rotate,
             scale: state.scale,
+            holding: state.holding,
+        }
+        .to_bytes(),
+    );
+    buffer.write(
+        RendHintLine {
+            rend_type: REND_TYPE_HINT,
+            flags: state.note.decoration.bits(),
+            slide: false,
+            scale: state.hint_scale,
+            rotate: state.hint_rotate,
+            alpha: state.hint_alpha,
         }
         .to_bytes(),
     );
@@ -123,7 +151,7 @@ fn draw_slide_state(buffer: &mut impl BufferWithCursor, state: &SlideNoteState) 
     if !state.enable {
         return;
     }
-    if state.head_enable {
+    if state.head_progress <= 1.0 {
         buffer.write(
             RendTapNote {
                 rend_type: REND_TYPE_SLIDE_HEAD,
@@ -132,28 +160,45 @@ fn draw_slide_state(buffer: &mut impl BufferWithCursor, state: &SlideNoteState) 
                 y: state.y,
                 rotate: state.rotate,
                 scale: state.scale,
+                alpha: 1.0,
             }
             .to_bytes(),
         );
-        return;
+        buffer.write(
+            RendHintLine {
+                rend_type: REND_TYPE_HINT,
+                flags: state.note.decoration.bits(),
+                slide: true,
+                scale: state.hint_scale,
+                rotate: state.hint_rotate,
+                alpha: state.hint_alpha,
+            }
+            .to_bytes(),
+        );
     }
     state
         .note
         .slide_branches
         .iter()
         .zip(state.branch_states.iter())
-        .for_each(|(branch, state)| draw_slide_branch(buffer, branch, state));
+        .for_each(|(branch, branch_state)| {
+            if state.body_alpha <= 0.0 {
+                return;
+            }
+            draw_slide_branch(buffer, branch, branch_state, state.body_alpha)
+        });
 }
 
 fn draw_slide_branch(
     buffer: &mut impl BufferWithCursor,
     branch: &SlideBranch,
     state: &SlideBranchState,
+    alpha: f32,
 ) {
     let SlideBranchState {
-        decoration,
         part_skip,
         part_move_time,
+        part_time,
         branch_enable,
     } = *state;
     if !branch_enable {
@@ -166,12 +211,19 @@ fn draw_slide_branch(
         .enumerate()
         .for_each(|(i, it)| {
             let first = i == 0;
-            let move_percent = if first {
-                part_move_time / it.duration
+            let (move_percent, delay_percent) = if first {
+                (part_move_time / it.duration, part_time / it.delay_duration)
             } else {
-                0.0
+                (0.0, 0.0)
             };
-            draw_slide_path(buffer, it, move_percent.clamp(0.0, 1.0), &decoration, first);
+            draw_slide_path(
+                buffer,
+                it,
+                move_percent.clamp(0.0, 1.0),
+                &it.decoration,
+                delay_percent,
+                alpha,
+            );
         });
 }
 
@@ -179,31 +231,51 @@ fn draw_slide_path(
     buffer: &mut impl BufferWithCursor,
     part: &SlidePart,
     percent: f32,
-    decoration: &NoteDecoration,
-    show_head: bool,
+    part_decoration: &NoteDecoration,
+    tracking_head_percent: f32,
+    alpha: f32,
 ) {
     track_path(&part.path, percent, 25, |pos, ang| {
         buffer.write(
             RendSlideArrow {
                 rend_type: REND_TYPE_SLIDE_ARROW,
-                flags: decoration.bits(),
+                flags: part_decoration.bits(),
                 x: pos.x,
                 y: -pos.y,
                 rotate: -ang.radians,
+                alpha,
             }
             .to_bytes(),
         );
     });
-    if show_head {
+    if part_decoration.contains(NoteDecoration::WifiSlide) {
+        track_path_complete(&part.path, 0.085, |pos, ang, i| {
+            buffer.write(
+                RendSlideWifiArrow {
+                    rend_type: REND_TYPE_WIFI_PART,
+                    flags: part_decoration.bits(),
+                    index: (i * 11.0) as u8,
+                    x: pos.x,
+                    y: -pos.y,
+                    rotate: -ang.radians,
+                    alpha: if i < percent { 0.0 } else { alpha },
+                }
+                .to_bytes(),
+            );
+        });
+    }
+    let show_tracking_head = tracking_head_percent > 0.0;
+    if show_tracking_head {
         let (current_point, angle, _) = track_path_point(&part.path, percent + 0.001);
         buffer.write(
             RendTapNote {
                 rend_type: REND_TYPE_SLIDE_HEAD,
-                flags: decoration.bits(),
+                flags: part_decoration.bits(),
                 x: current_point.x,
                 y: -current_point.y,
                 rotate: -angle.radians,
-                scale: 1.0,
+                scale: tracking_head_percent.clamp(0.0, 1.0),
+                alpha: tracking_head_percent.clamp(0.0, 1.0),
             }
             .to_bytes(),
         );

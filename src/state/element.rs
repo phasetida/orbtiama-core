@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use lyon_path::math::Point;
 
-use crate::deserialize::element::notes::{NoteDecoration, NoteHold, NoteSlide, NoteTap, NoteTouch};
+use crate::deserialize::element::notes::{NoteHold, NoteSlide, NoteTap, NoteTouch};
 
 pub enum NoteState {
     Tap(TapNoteState),
@@ -48,6 +48,9 @@ impl Default for NoteStateCommon {
 pub struct TapNoteState {
     pub common: NoteStateCommon,
     pub note: NoteTap,
+    pub hint_scale: f32,
+    pub hint_rotate: f32,
+    pub hint_alpha: f32,
 }
 
 pub struct TouchNoteState {
@@ -67,7 +70,11 @@ pub struct HoldNoteState {
     pub common: NoteStateCommon,
     pub tail_x: f32,
     pub tail_y: f32,
+    pub holding: bool,
     pub note: NoteHold,
+    pub hint_scale: f32,
+    pub hint_rotate: f32,
+    pub hint_alpha: f32,
 }
 
 impl HoldNoteState {
@@ -79,17 +86,21 @@ impl HoldNoteState {
 
 pub struct SlideNoteState {
     pub common: NoteStateCommon,
-    pub head_enable: bool,
+    pub head_progress: f32,
+    pub body_alpha: f32,
     pub note: NoteSlide,
     pub branch_states: Vec<SlideBranchState>,
+    pub hint_scale: f32,
+    pub hint_rotate: f32,
+    pub hint_alpha: f32,
 }
 
 #[derive(Default)]
 pub struct SlideBranchState {
     pub branch_enable: bool,
-    pub decoration: NoteDecoration,
     pub part_skip: usize,
     pub part_move_time: f32,
+    pub part_time: f32,
 }
 
 impl Deref for TapNoteState {

@@ -39,10 +39,10 @@ pub fn generate_path(from_location: Location, slide_locator: SlideLocator) -> Pa
             generator_grand_v(&mut builder, to_location_1, to_location_2)
         }
         SlideLocator::ThunderboltS(to_location) => {
-            generate_zigzag(&mut builder, from_location, to_location, false)
+            generate_zigzag(&mut builder, from_location, to_location, true)
         }
         SlideLocator::ThunderboltZ(to_location) => {
-            generate_zigzag(&mut builder, from_location, to_location, true)
+            generate_zigzag(&mut builder, from_location, to_location, false)
         }
         SlideLocator::PShape(to_location) => {
             generate_q_p_curve(&mut builder, from_location, to_location, Clockwise::Ccw);

@@ -7,11 +7,11 @@ use crate::deserialize::{
         chart::{NoteCollection, Timing},
         notes::{
             Location, Note, NoteCommon, NoteDecoration, NoteHold, NoteSlide, NoteTap, NoteTouch,
-            SlideBranch, SlideLocator, SlidePart, SlidePartRaw,
+            SlideBranch, SlideBranchRaw, SlideLocator, SlidePart, SlidePartRaw,
         },
     },
     lexer::Rule,
-    math::linearize_path,
+    math::{Clockwise, linearize_path},
     parser::{
         path_generator::generate_path,
         time_parser::{read_duration_hold, read_duration_slide, read_duration_slide_with_delay},
@@ -62,14 +62,36 @@ pub fn parse_note_collection(pair: Pair<Rule>, timings: &[Timing], time: f32) ->
 
 fn process_each(notes: &mut [Note], each: &[bool]) {
     for (i, it) in each.iter().enumerate() {
-        if *it {
+        if !*it {
             continue;
         }
-        let left = &mut notes[i];
-        left.decoration |= NoteDecoration::Each;
-        let right = &mut notes[i + 1];
-        right.decoration |= NoteDecoration::Each;
+        notes[i].decoration |= NoteDecoration::Each;
+        notes[i + 1].decoration |= NoteDecoration::Each;
     }
+    process_slide_each(notes);
+}
+
+fn process_slide_each(notes: &mut [Note]) {
+    let slides: Vec<_> = notes
+        .iter_mut()
+        .filter_map(|it| match it {
+            Note::Slide(note_slide) => Some(note_slide),
+            _ => None,
+        })
+        .collect();
+    let each = slides.len() > 1;
+    if !each {
+        return;
+    }
+    slides.into_iter().for_each(|it| {
+        it.common.decoration |= NoteDecoration::Each;
+        it.slide_branches.iter_mut().for_each(|it| {
+            it.slide_parts.iter_mut().for_each(|it| {
+                it.decoration |= NoteDecoration::Each;
+                it.decoration |= NoteDecoration::TailEach;
+            });
+        });
+    });
 }
 
 fn read_tap_note(pair: Pair<Rule>) -> Note {
@@ -119,7 +141,7 @@ fn read_hold_note(pair: Pair<Rule>, latest_timing: &Timing) -> Note {
 
 fn read_slide_note(pair: Pair<Rule>, latest_timing: &Timing) -> Note {
     let mut iter = pair.into_inner();
-    let common = NoteCommon {
+    let mut common = NoteCommon {
         location: iter
             .next()
             .as_ref()
@@ -127,19 +149,34 @@ fn read_slide_note(pair: Pair<Rule>, latest_timing: &Timing) -> Note {
             .expect("parser_slide: expect location, found nothing"),
         ..Default::default()
     };
-    let mut slide_branches = Vec::<SlideBranch>::new();
+    let mut slide_branches_raw = Vec::<SlideBranchRaw>::new();
     for it in iter {
-        let mut branch_common = NoteCommon::default();
-        if read_common_single(&it, &mut branch_common) {
+        if read_common_single(&it, &mut common) {
             continue;
         }
         match it.as_rule() {
             Rule::slide_branch => {
-                slide_branches.push(read_slide_branch(it, common.location, latest_timing));
+                slide_branches_raw.push(read_slide_branch_raw(it, common.location, latest_timing));
             }
             Rule::slide_joiner => {}
             _ => panic!("parser_slide: unexpected token: {:?}", it.as_str()),
         }
+    }
+    process_slide_branch_each(&mut slide_branches_raw);
+    let slide_branches_raw = process_slide_branch_wifi(slide_branches_raw);
+    let slide_branches: Vec<_> = slide_branches_raw
+        .into_iter()
+        .map(|it| {
+            let mut parts = cook_slide_parts_raw(it.start_location, &it.slide_parts);
+            process_slide_parts_break(&mut parts);
+            SlideBranch {
+                start_location: it.start_location,
+                slide_parts: parts,
+            }
+        })
+        .collect();
+    if slide_branches.len() > 1 {
+        common.decoration |= NoteDecoration::DoubleStar;
     }
     Note::Slide(NoteSlide {
         common,
@@ -147,11 +184,52 @@ fn read_slide_note(pair: Pair<Rule>, latest_timing: &Timing) -> Note {
     })
 }
 
-fn read_slide_branch(
+fn process_slide_branch_wifi(raw: Vec<SlideBranchRaw>) -> Vec<SlideBranchRaw> {
+    raw.into_iter()
+        .flat_map(|it| {
+            if let Some(part) = it.slide_parts.first().cloned()
+                && let SlideLocator::FanShape(location) = part.0.location
+            {
+                let start_location = it.start_location;
+                let mut decoration = part.0.decoration;
+                decoration.remove(NoteDecoration::WifiSlide);
+                vec![
+                    it,
+                    SlideBranchRaw {
+                        start_location,
+                        slide_parts: vec![(
+                            SlidePartRaw {
+                                location: SlideLocator::Straight(location.rotate(1, Clockwise::Cw)),
+                                decoration,
+                            },
+                            part.1,
+                        )],
+                    },
+                    SlideBranchRaw {
+                        start_location,
+                        slide_parts: vec![(
+                            SlidePartRaw {
+                                location: SlideLocator::Straight(
+                                    location.rotate(1, Clockwise::Ccw),
+                                ),
+                                decoration,
+                            },
+                            part.1,
+                        )],
+                    },
+                ]
+            } else {
+                vec![it]
+            }
+        })
+        .collect()
+}
+
+fn read_slide_branch_raw(
     pair: Pair<Rule>,
     start_location: Location,
     latest_timing: &Timing,
-) -> SlideBranch {
+) -> SlideBranchRaw {
     let mut parts = Vec::<(SlidePartRaw, Option<(f32, f32)>)>::new();
     for it in pair.into_inner() {
         match it.as_rule() {
@@ -170,15 +248,39 @@ fn read_slide_branch(
             ),
         }
     }
-    let parts = parse_slide_parts_raw(start_location, &parts);
-    SlideBranch {
+    SlideBranchRaw {
         start_location,
         slide_parts: parts,
     }
 }
 
+fn process_slide_parts_break(parts: &mut [SlidePart]) {
+    let is_tail_break = parts
+        .iter()
+        .any(|it| it.decoration.contains(NoteDecoration::Break));
+    if !is_tail_break {
+        return;
+    }
+    for it in parts {
+        it.decoration |= NoteDecoration::Break;
+        it.decoration |= NoteDecoration::TailBreak;
+    }
+}
+
+fn process_slide_branch_each(branches: &mut [SlideBranchRaw]) {
+    if branches.len() <= 1 {
+        return;
+    }
+    branches.iter_mut().for_each(|it| {
+        it.slide_parts.iter_mut().for_each(|it| {
+            it.0.decoration |= NoteDecoration::Each;
+            it.0.decoration |= NoteDecoration::TailEach;
+        });
+    });
+}
+
 #[deny(clippy::pedantic)]
-fn parse_slide_parts_raw(
+fn cook_slide_parts_raw(
     start_location: Location,
     raw: &[(SlidePartRaw, Option<(f32, f32)>)],
 ) -> Vec<SlidePart> {
@@ -280,6 +382,9 @@ fn read_slide_part(pair: Pair<Rule>, latest_timing: &Timing) -> (SlidePartRaw, O
             }
             _ => panic!("parser_slide_part: unexpected token: {:?}", it.as_str()),
         };
+    }
+    if matches!(location, SlideLocator::FanShape(_)) {
+        decoration |= NoteDecoration::WifiSlide;
     }
     (
         SlidePartRaw {

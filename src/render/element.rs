@@ -6,6 +6,7 @@ pub struct RendTapNote {
     pub y: f32,
     pub rotate: f32,
     pub scale: f32,
+    pub alpha: f32,
 }
 
 #[repr(C, packed)]
@@ -37,6 +38,7 @@ pub struct RendHoldNote {
     pub tail_y: f32,
     pub rotate: f32,
     pub scale: f32,
+    pub holding: bool,
 }
 
 #[repr(C, packed)]
@@ -46,6 +48,36 @@ pub struct RendSlideArrow {
     pub x: f32,
     pub y: f32,
     pub rotate: f32,
+    pub alpha: f32,
+}
+
+#[repr(C, packed)]
+pub struct RendHintLine {
+    pub rend_type: u8,
+    pub flags: u16,
+    pub slide: bool,
+    pub scale: f32,
+    pub rotate: f32,
+    pub alpha: f32,
+}
+
+#[repr(C, packed)]
+pub struct RendEachHintLine {
+    pub rend_type: u8,
+    pub serial: u8,
+    pub scale: f32,
+    pub rotate: f32,
+}
+
+#[repr(C, packed)]
+pub struct RendSlideWifiArrow {
+    pub rend_type: u8,
+    pub flags: u16,
+    pub index: u8,
+    pub x: f32,
+    pub y: f32,
+    pub rotate: f32,
+    pub alpha: f32,
 }
 
 impl Dense for RendTapNote {}
@@ -53,6 +85,9 @@ impl Dense for RendTouchNote {}
 impl Dense for RendHoldNote {}
 impl Dense for RendTouchHoldNote {}
 impl Dense for RendSlideArrow {}
+impl Dense for RendHintLine {}
+impl Dense for RendEachHintLine {}
+impl Dense for RendSlideWifiArrow {}
 
 pub trait Dense {
     fn to_bytes(&self) -> &[u8]

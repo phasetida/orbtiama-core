@@ -1,3 +1,4 @@
+use std::f32::consts::PI;
 
 use crate::{
     CHART_STATE, DISPLAY_SETTINGS,
@@ -7,7 +8,7 @@ use crate::{
             HoldNoteState, NoteState, SlideBranchState, SlideNoteState, TapNoteState,
             TouchHoldNoteState, TouchNoteState,
         },
-        math::get_tap_position_and_scale,
+        math::{get_slide_alpha, get_tap_position_and_scale},
         setting::Settings,
     },
 };
@@ -68,6 +69,8 @@ fn tick_tap_note(time_in_second: f32, state: &mut TapNoteState, setting: &Settin
     state
         .common
         .set_fixed_rotate(position.to_vector().angle_from_x_axis().radians);
+    state.hint_scale = (((progress - 0.5) / 0.5 * 0.8) + 0.2).clamp(0.2, 1.0);
+    state.hint_alpha = scale;
 }
 
 fn tick_touch_note(time_in_second: f32, state: &mut TouchNoteState, setting: &Settings) {
@@ -102,12 +105,16 @@ fn tick_hold_note(time_in_second: f32, state: &mut HoldNoteState, setting: &Sett
     state
         .common
         .set_fixed_rotate(head_position.to_vector().angle_from_x_axis().radians);
+    state.holding = head_progress >= 1.0;
+    state.hint_scale = (((head_progress - 0.5) / 0.5 * 0.8) + 0.2).clamp(0.2, 1.0);
+    state.hint_alpha = head_scale;
 }
 
 fn tick_touch_hold_note(time_in_second: f32, state: &mut TouchHoldNoteState, setting: &Settings) {
     let speed = setting.touch_speed;
     let show_progress = get_progress(speed, time_in_second, state.time);
-    let hold_progress = get_progress(speed, time_in_second, state.time + state.note.duration);
+    let hold_progress =
+        1.0 - (state.time + state.note.duration - time_in_second) / state.note.duration;
     if show_progress <= 0.0 || hold_progress >= 1.0 {
         state.common.enable = false;
         return;
@@ -127,18 +134,22 @@ fn tick_slide_note(time_in_second: f32, state: &mut SlideNoteState, setting: &Se
         state.common.enable = false;
         return;
     }
+    let slide_alpha_offset = setting.slide_show_offset;
     state.common.enable = true;
-    state.head_enable = head_progress < 1.0;
-    if state.head_enable {
+    state.head_progress = head_progress;
+    state.body_alpha = get_slide_alpha(slide_alpha_offset, head_progress);
+    state.hint_scale = 0.0;
+    if head_progress <= 1.0 {
         let (position, scale) =
             get_tap_position_and_scale(&state.note.location, head_progress.clamp(0.0, 1.0));
         state.common.set_fixed_position(position);
         state.common.scale = scale;
         state
             .common
-            .set_fixed_rotate(position.to_vector().angle_from_x_axis().radians);
+            .set_fixed_rotate(position.to_vector().angle_from_x_axis().radians + scale * 2.0 * PI);
+        state.hint_scale = (((head_progress - 0.5) / 0.5 * 0.8) + 0.2).clamp(0.2, 1.0);
+        state.hint_alpha = scale;
     }
-    //TODO add alpha
     state
         .note
         .slide_branches
@@ -178,4 +189,5 @@ fn tick_slide_branch(
     let part_move_time = part_time - current_part.delay_duration;
     branch_state.part_skip = skip;
     branch_state.part_move_time = part_move_time;
+    branch_state.part_time = part_time;
 }

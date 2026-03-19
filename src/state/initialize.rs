@@ -48,10 +48,19 @@ fn initialize_note_state(note: Note, time: f32) -> NoteState {
         time,
         ..NoteStateCommon::default()
     };
+    let hint_rotate = -note
+        .location
+        .get_point()
+        .to_vector()
+        .angle_from_x_axis()
+        .radians;
     match note {
         Note::Tap(note_tap) => NoteState::Tap(TapNoteState {
             common,
             note: note_tap,
+            hint_scale: 0.0,
+            hint_rotate,
+            hint_alpha: 0.0,
         }),
         Note::Touch(note_touch) => NoteState::Touch(TouchNoteState {
             common,
@@ -70,8 +79,12 @@ fn initialize_note_state(note: Note, time: f32) -> NoteState {
                 NoteState::Hold(HoldNoteState {
                     common,
                     note: note_hold,
+                    holding: false,
                     tail_x: 0.0,
                     tail_y: 0.0,
+                    hint_rotate,
+                    hint_scale: 0.0,
+                    hint_alpha: 0.0,
                 })
             }
         }
@@ -79,9 +92,13 @@ fn initialize_note_state(note: Note, time: f32) -> NoteState {
             let len = note_slide.slide_branches.len();
             NoteState::Slide(SlideNoteState {
                 common,
-                head_enable: false,
+                head_progress: 0.0,
+                body_alpha: 0.0,
                 note: note_slide,
                 branch_states: (0..len).map(|_| SlideBranchState::default()).collect(),
+                hint_rotate,
+                hint_scale: 0.0,
+                hint_alpha: 0.0,
             })
         }
     }
