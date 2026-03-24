@@ -27,7 +27,7 @@ const REND_TYPE_HOLD: u8 = 4;
 const REND_TYPE_SLIDE_HEAD: u8 = 5;
 const REND_TYPE_SLIDE_ARROW: u8 = 6;
 const REND_TYPE_HINT: u8 = 7;
-const REND_TYPE_EACH_HINT: u8 = 8;
+// const REND_TYPE_EACH_HINT: u8 = 8;
 const REND_TYPE_WIFI_PART: u8 = 9;
 
 /// A trait for observing write operations on a buffer.
