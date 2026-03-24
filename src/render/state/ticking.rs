@@ -27,7 +27,7 @@ pub fn tick_state(time_in_second: f32, delta_time_in_second: f32) {
 
 fn tick_notes(
     time_in_second: f32,
-    delta_time_in_second: f32,
+    _delta_time_in_second: f32,
     states: &mut [NoteState],
     setting: &Settings,
 ) {
