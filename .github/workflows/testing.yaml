@@ -1,0 +1,19 @@
+name: Run Cargo Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout library repository
+      uses: actions/checkout@v4
+
+    - name: Clone resources repository
+      run: git clone https://github.com/phasetida/Maichart-Converts
+
+    - name: Run cargo tests
+      run: cargo test

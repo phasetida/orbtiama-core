@@ -1,9 +1,11 @@
-use lyon_path::{
-    geom::point,
-    math::{Angle, Point},
-};
+use std::f32::consts::PI;
 
-use crate::deserialize::element::notes::FractureRay;
+use lyon_path::math::{Angle, Point, point};
+
+use crate::{
+    deserialize::chart::element::notes::{FractureRay, Location},
+    render::state::setting::MirrorMode,
+};
 
 pub fn track_path_point(path: &FractureRay, percent: f32) -> (Point, Angle, usize) {
     let target_length = path.length * percent;
@@ -60,4 +62,63 @@ where
                 )
             }
         });
+}
+
+impl Location {
+    pub fn get_tap_position_and_scale(&self, progress: f32) -> (Point, f32) {
+        get_tap_position_and_scale(self, progress)
+    }
+}
+
+pub fn get_tap_position_and_scale(location: &Location, progress: f32) -> (Point, f32) {
+    let end_point = location.get_point();
+    let start_point = end_point * 0.2;
+    let division = 0.5;
+    if progress <= division {
+        (start_point, progress / division)
+    } else {
+        let move_progress = (progress - division) / (1.0 - division);
+        let delta = (end_point - start_point) * move_progress;
+        (start_point + delta, 1.0)
+    }
+}
+
+pub fn get_slide_alpha(offset: f32, head_progress: f32) -> f32 {
+    let offset = offset.clamp(-1.0, 1.0);
+    let head_progress = head_progress.clamp(0.0, 1.0);
+    if offset >= 0.9999 {
+        return if head_progress == 1.0 { 1.0 } else { 0.0 };
+    }
+    let c = 0.5 + 0.5 * offset;
+    let cs = 0.5 - 0.5 * offset;
+    let k = 1.0 / cs;
+    if head_progress < c {
+        0.0
+    } else {
+        k * (head_progress - c)
+    }
+}
+
+pub fn get_fixed_rotate(rotate: Angle, mirror_mode: MirrorMode) -> Angle {
+    let rotate = rotate.radians;
+    Angle {
+        radians: match mirror_mode {
+            MirrorMode::None => -rotate,
+            MirrorMode::Horizontal => rotate + PI,
+            MirrorMode::Vertical => rotate,
+            MirrorMode::Both => PI - rotate,
+        },
+    }
+}
+
+pub fn get_fixed_position(point: Point, mirror_mode: MirrorMode) -> Point {
+    let x_sign = match mirror_mode {
+        MirrorMode::None | MirrorMode::Vertical => 1.0,
+        MirrorMode::Horizontal | MirrorMode::Both => -1.0,
+    };
+    let y_sign = match mirror_mode {
+        MirrorMode::None | MirrorMode::Horizontal => -1.0,
+        MirrorMode::Vertical | MirrorMode::Both => 1.0,
+    };
+    lyon_path::math::point(point.x * x_sign, point.y * y_sign)
 }

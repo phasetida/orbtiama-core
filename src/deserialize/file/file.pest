@@ -1,0 +1,5 @@
+w       = _{ "\r" | "\n" }
+key     =  { (ANY ~ !"=")* ~ ANY }
+content =  { (ANY ~ !"&")* ~ ANY }
+pair    =  { "&" ~ key ~ "=" ~ content }
+file    =  { (pair | w)* }

@@ -1,0 +1,79 @@
+number                           =  { ('0'..'9')+ ~ ("." ~ ('0'..'9')+)? }
+slide_locator_straight           = @{ "-" }
+slide_locator_clockwise_arc      = @{ ">" }
+slide_locator_anti_clockwise_arc = @{ "<" }
+slide_locator_short_arc          = @{ "^" }
+slide_locator_v                  = @{ "v" }
+slide_locator_grand_v            = @{ "V" }
+slide_locator_thunderbolt_s      = @{ "s" }
+slide_locator_thunderbolt_z      = @{ "z" }
+slide_locator_q                  = @{ "q" }
+slide_locator_p                  = @{ "p" }
+slide_locator_grand_p            = @{ "pp" }
+slide_locator_grand_q            = @{ "qq" }
+slide_locator_fan                = @{ "w" }
+slide_normal_locator             =  { slide_locator_straight | slide_locator_clockwise_arc | slide_locator_anti_clockwise_arc | slide_locator_short_arc | slide_locator_grand_p | slide_locator_grand_q | slide_locator_v | slide_locator_q | slide_locator_p | slide_locator_thunderbolt_s | slide_locator_thunderbolt_z | slide_locator_fan }
+slide_grand_v_locator            =  { slide_locator_grand_v ~ location ~ location }
+
+slide_joiner        = @{ "*" }
+each_divider_normal =  { "/" }
+each_divider_fake   =  { "`" }
+each_divider        = _{ each_divider_fake | each_divider_normal }
+
+decoration_spinning_star = @{ "$$" }
+decoration_star          = @{ "$" }
+decoration_break         = @{ "b" }
+decoration_ex            = @{ "x" }
+decoration_force_normal  = @{ "@" }
+decoration_firework      = @{ "f" }
+decoration_hold          = @{ "h" }
+decoration_fade_out      = @{ "?" }
+decoration_sudden_in     = @{ "!" }
+
+common_decorations = _{ decoration_spinning_star | decoration_firework | decoration_break | decoration_ex | decoration_star | decoration_force_normal }
+
+slide_start_decorations = _{ decoration_fade_out | decoration_sudden_in | decoration_force_normal | decoration_ex | decoration_break }
+slide_end_decorations   = _{ decoration_break }
+time_step               =  { "," }
+eof                     =  { "E" }
+
+location_tap    =  { ('1'..'8') }
+location_sensor =  { (('A'..'E') ~ ('1'..'8')) | "C" }
+location        = @{ location_tap | location_sensor }
+
+bpm                  = @{ number }
+denominator          = @{ number }
+numerator            = @{ number }
+second               = @{ number }
+tempo                = @{ number }
+subdivision_absolute = @{ number }
+subdivision_beat     = @{ number }
+subdivision          =  { ("#" ~ subdivision_absolute) | subdivision_beat }
+
+duration_with_bpm         = { (bpm ~ "#")? ~ denominator ~ ":" ~ numerator }
+duration_absolute         = { second ~ !":" }
+delay_duration_absolute   = { second ~ "##" }
+duration_hold             = { "[" ~ (duration_with_bpm | ("#" ~ duration_absolute)) ~ "]" }
+duration_slide_with_delay = { "[" ~ delay_duration_absolute? ~ (duration_with_bpm | duration_absolute) ~ "]" }
+duration_slide            = { "[" ~ (duration_with_bpm | ("#" ~ duration_absolute)) ~ "]" }
+
+WHITESPACE = _{ " " | NEWLINE }
+COMMENT    = _{ "||" ~ (!"\n" ~ ANY)* ~ "\n" }
+
+tap_note             =  { location_tap ~ common_decorations* }
+touch_note           =  { location_sensor ~ common_decorations* }
+hold_note            =  { location_tap ~ common_decorations* ~ decoration_hold ~ common_decorations* ~ duration_hold }
+touch_hold_note      =  { location_sensor ~ common_decorations* ~ decoration_hold ~ common_decorations* ~ duration_hold? }
+slide_location       =  { ((slide_normal_locator ~ location) | slide_grand_v_locator) }
+slide_part           =  { slide_location ~ slide_start_decorations* }
+slide_part_with_time =  { slide_location ~ slide_start_decorations* ~ duration_slide }
+slide_branch         =  { (((slide_part_with_time+) ~ (slide_part ~ duration_slide_with_delay)?) | ((slide_part+ ~ duration_slide_with_delay))) ~ slide_end_decorations* }
+slide_note           =  { location ~ slide_start_decorations* ~ slide_branch ~ (slide_joiner ~ slide_branch)* }
+note                 = _{ slide_note | touch_hold_note | hold_note | tap_note | touch_note }
+note_collection      =  { note ~ (each_divider ~ note)* }
+tempo_change         =  { "(" ~ tempo ~ ")" }
+
+subdivision_change = { "{" ~ subdivision ~ "}" }
+
+eoi   = @{ EOI }
+chart =  { (note_collection | tempo_change | subdivision_change | time_step | WHITESPACE)* ~ eof? ~ eoi }
