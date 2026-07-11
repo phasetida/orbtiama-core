@@ -1,4 +1,4 @@
 pub mod element;
 pub mod initialize;
-pub mod ticking;
 pub mod setting;
+pub mod ticking;

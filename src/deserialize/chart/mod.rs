@@ -1,4 +1,4 @@
-pub mod lexer;
-pub mod parser;
 pub mod element;
+pub mod lexer;
 mod math;
+pub mod parser;

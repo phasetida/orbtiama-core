@@ -27,7 +27,7 @@ impl TryFrom<&str> for SiMaiFile {
     /// &name=Foo
     /// &inote_1=Bar
     /// E
-    /// 
+    ///
     /// ```
     /// will be transformed into a hash map like:
     /// ```txt
@@ -55,7 +55,9 @@ impl TryFrom<&str> for SiMaiFile {
                     it.map(Pair::into_inner).map(|mut it| -> Option<_> {
                         (
                             String::from(it.find(|it| it.as_rule() == Rule::key)?.as_str().trim()),
-                            String::from(it.find(|it| it.as_rule() == Rule::content)?.as_str().trim()),
+                            String::from(
+                                it.find(|it| it.as_rule() == Rule::content)?.as_str().trim(),
+                            ),
                         )
                             .into()
                     })
