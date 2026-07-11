@@ -468,7 +468,7 @@ fn read_common(pair: Pair<Rule>) -> NoteCommon {
 fn read_common_single(pair: &Pair<Rule>, common: &mut NoteCommon) -> bool {
     match pair.as_rule() {
         Rule::location => common.location = read_location(pair),
-        r if read_common_decoration(pair, &mut common.decoration) => {}
+        _ if read_common_decoration(pair, &mut common.decoration) => {}
         _ => return false,
     };
     true

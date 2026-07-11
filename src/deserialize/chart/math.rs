@@ -150,7 +150,11 @@ pub fn linearize_path(path: Path) -> FractureRay {
             _ => 0.0,
         }
     });
-    FractureRay { path, length, tolerance }
+    FractureRay {
+        path,
+        length,
+        tolerance,
+    }
 }
 
 #[cfg(test)]

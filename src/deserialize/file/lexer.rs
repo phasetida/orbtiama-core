@@ -27,6 +27,7 @@ impl TryFrom<&str> for SiMaiFile {
     /// &name=Foo
     /// &inote_1=Bar
     /// E
+    ///
     /// ```
     /// will be transformed into a hash map like:
     /// ```txt
@@ -39,7 +40,7 @@ impl TryFrom<&str> for SiMaiFile {
     /// # use std::collections::HashMap;
     /// let file=SiMaiFile::try_from("&name=Foo\n&inote_1=Bar\nE").expect("failed to parse").0;
     /// assert_eq!(file, HashMap::from([
-    ///     ("name".to_string(), "Foo\n".to_string()),
+    ///     ("name".to_string(), "Foo".to_string()),
     ///     ("inote_1".to_string(), "Bar\nE".to_string())
     /// ]));
     /// ```
@@ -53,8 +54,10 @@ impl TryFrom<&str> for SiMaiFile {
                 .flat_map(|it| {
                     it.map(Pair::into_inner).map(|mut it| -> Option<_> {
                         (
-                            String::from(it.find(|it| it.as_rule() == Rule::key)?.as_str()),
-                            String::from(it.find(|it| it.as_rule() == Rule::content)?.as_str()),
+                            String::from(it.find(|it| it.as_rule() == Rule::key)?.as_str().trim()),
+                            String::from(
+                                it.find(|it| it.as_rule() == Rule::content)?.as_str().trim(),
+                            ),
                         )
                             .into()
                     })
